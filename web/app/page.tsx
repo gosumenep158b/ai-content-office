@@ -9,20 +9,16 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-interface LoginForm {
-  email: string;
-  password: string;
-}
-
 export default function Home() {
   const router = useRouter();
 
   // Check auth state on mount
   useEffect(() => {
-    const { data: { session } } = supabase.auth.getSession();
-    if (session) {
-      router.push("/dashboard");
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push("/dashboard");
+      }
+    });
   }, [router]);
 
   return (
@@ -65,21 +61,15 @@ export default function Home() {
 
           {/* CTA buttons */}
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Button asChild>
-              <a
-                href="/dashboard"
-                className="rounded-lg border border-primary px-4 py-2.5 text-primary font-medium transition-colors hover:bg-primary/90"
-              >
-                Masuk ke Dashboard
-              </a>
+            <Button
+              className="rounded-lg border border-primary px-4 py-2.5 text-primary font-medium transition-colors hover:bg-primary/90"
+            >
+              <a href="/dashboard">Masuk ke Dashboard</a>
             </Button>
-            <Button asChild variant="outline">
-              <a
-                href="/login"
-                className="rounded-lg border border-border px-4 py-2.5 text-foreground font-medium transition-colors hover:bg-background"
-              >
-                Login
-              </a>
+            <Button
+              className="rounded-lg border border-border px-4 py-2.5 text-foreground font-medium transition-colors hover:bg-background"
+            >
+              <a href="/login">Login</a>
             </Button>
           </div>
         </div>
