@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320" role="img" aria-label="Ilustrasi empty state: belum ada task">
+  <title>Empty state — belum ada task</title>
+  <!-- Flat illustration, palet brand. Tanpa teks — caption ditulis oleh aplikasi. -->
+  <circle cx="240" cy="150" r="112" fill="none" stroke="#CBD5E1" stroke-width="3" stroke-dasharray="10 10"/>
+  <ellipse cx="240" cy="278" rx="90" ry="12" fill="#0F2440" opacity="0.08"/>
+  <!-- Clipboard -->
+  <rect x="188" y="86" width="104" height="138" rx="14" fill="#FFFFFF" stroke="#0F2440" stroke-width="6"/>
+  <rect x="216" y="72" width="48" height="24" rx="10" fill="#0F2440"/>
+  <!-- Checklist -->
+  <g stroke-linecap="round">
+    <rect x="206" y="112" width="20" height="20" rx="5" fill="none" stroke="#0F2440" stroke-width="4"/>
+    <path d="M209 122 l5 5 l9 -10" fill="none" stroke="#DC2626" stroke-width="4"/>
+    <line x1="236" y1="122" x2="272" y2="122" stroke="#94A3B8" stroke-width="6"/>
+    <rect x="206" y="146" width="20" height="20" rx="5" fill="none" stroke="#0F2440" stroke-width="4"/>
+    <path d="M209 156 l5 5 l9 -10" fill="none" stroke="#DC2626" stroke-width="4"/>
+    <line x1="236" y1="156" x2="272" y2="156" stroke="#94A3B8" stroke-width="6"/>
+    <rect x="206" y="180" width="20" height="20" rx="5" fill="none" stroke="#0F2440" stroke-width="4"/>
+    <line x1="236" y1="190" x2="272" y2="190" stroke="#CBD5E1" stroke-width="6"/>
+  </g>
+</svg>
