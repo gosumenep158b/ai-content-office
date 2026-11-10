@@ -173,7 +173,7 @@ export default function DashboardPage() {
           <select
             value={form.priority}
             onChange={(e) =>
-              setForm({ ...form, priority: e.target.value as const })
+              setForm({ ...form, priority: e.target.value as "low" | "medium" | "high" | "urgent" })
             }
             className="input"
           >
