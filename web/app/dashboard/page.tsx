@@ -75,8 +75,8 @@ export default function DashboardPage() {
         credentials: "include",
       });
       if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data)) setTasks(data);
+      const json = await res.json();
+      if (Array.isArray(json?.data)) setTasks(json.data);
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
@@ -98,12 +98,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, assigned_agent_id: form.assignee, due_at: form.deadline || null }),
         credentials: "include",
       });
       if (res.ok) {
-        const newItem = await res.json();
-        setTasks([...tasks, newItem]);
+        const json = await res.json();
+        if (json?.data) setTasks([...tasks, json.data]);
         setForm({
           title: "",
           description: "",
@@ -178,7 +178,7 @@ export default function DashboardPage() {
             className="input"
           >
             <option value="low">Rendah</option>
-            <option value="medium">Rendah</option>
+            <option value="medium">Sedang</option>
             <option value="high">Tinggi</option>
             <option value="urgent">Darurat</option>
           </select>

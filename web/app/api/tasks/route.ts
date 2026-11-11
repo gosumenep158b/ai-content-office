@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 
+// Terima UUID atau nama agent ("dika") -> UUID
+async function resolveAgent(v: string | null | undefined, db: ReturnType<typeof supabaseAdmin>) {
+  if (!v) return null
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (uuidRe.test(v)) return v
+  const { data } = await db.from('agents').select('id').eq('nama', v).single()
+  return data?.id ?? null
+}
+
 const STATUS = ['Backlog','Assigned','In Progress','Waiting Input','In Review','Revision','Completed','Blocked','Cancelled']
 
 export async function GET() {
@@ -22,7 +31,7 @@ export async function POST(req: Request) {
     title: body.title,
     description: body.description ?? null,
     goal: body.goal ?? null,
-    assigned_agent_id: body.assigned_agent_id ?? null,
+    assigned_agent_id: await resolveAgent(body.assigned_agent_id ?? null, db),
     priority: body.priority ?? 'medium',
     status: body.status ?? 'Backlog',
     due_at: body.due_at ?? null,

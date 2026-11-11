@@ -74,8 +74,8 @@ export default function TaskManagementPage() {
     try {
       const res = await fetch("/api/tasks");
       if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data)) setTasks(data);
+      const json = await res.json();
+      if (Array.isArray(json?.data)) setTasks(json.data);
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
@@ -88,11 +88,11 @@ export default function TaskManagementPage() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({ ...newTask, assigned_agent_id: newTask.assignee, due_at: newTask.deadline || null }),
       });
       if (res.ok) {
-        const newItem = await res.json();
-        setTasks([...tasks, newItem]);
+        const json = await res.json();
+        if (json?.data) setTasks([...tasks, json.data]);
         setNewTask({
           title: "",
           description: "",
@@ -171,7 +171,7 @@ export default function TaskManagementPage() {
             className="input"
           >
             <option value="low">Rendah</option>
-            <option value="medium">Rendah</option>
+            <option value="medium">Sedang</option>
             <option value="high">Tinggi</option>
             <option value="urgent">Darurat</option>
           </select>
