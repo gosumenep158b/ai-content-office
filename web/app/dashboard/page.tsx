@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { supabaseAdmin } from "@/lib/supabase";
 
 const STATUS = [
   "Backlog",
@@ -193,7 +192,7 @@ export default function DashboardPage() {
         </div>
         <button
           type="submit"
-          className="mt-4 w-full rounded-lg border border-primary px-4 py-2.5 text-white font-medium transition-colors hover:bg-primary/90"
+          className="mt-4 w-full rounded-lg bg-primary px-4 py-2.5 text-white font-semibold transition-colors hover:bg-primary/90"
         >
           Buat Tugas
         </button>
