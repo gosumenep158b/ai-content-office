@@ -1,98 +1,49 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-const STATUS = [
-  "Backlog",
-  "Assigned",
-  "In Progress",
-  "Waiting Input",
-  "In Review",
-  "Revision",
-  "Completed",
-  "Blocked",
-  "Cancelled",
-] as const;
-
-const PRIORITY_COLORS = {
-  low: "bg-green-100 text-green-800",
-  medium: "bg-blue-100 text-blue-800",
-  high: "bg-amber-100 text-amber-800",
-  urgent: "bg-red-100 text-red-800",
-};
-
-const STATUS_COLORS: Record<typeof STATUS[number], string> = {
-  Backlog: "bg-gray-100 text-gray-600",
-  Assigned: "bg-blue-100 text-blue-700",
-  "In Progress": "bg-amber-100 text-amber-800",
-  "Waiting Input": "bg-yellow-100 text-yellow-800",
-  "In Review": "bg-green-100 text-green-800",
-  Revision: "bg-purple-100 text-purple-800",
-  Completed: "bg-gray-50 text-gray-700",
-  Blocked: "bg-red-100 text-red-800",
-  Cancelled: "bg-gray-200 text-gray-600",
-};
+// eslint-disable-next-line @next/next/no-img-element
 
 type Task = {
   id: string;
   title: string;
   description: string | null;
-  assignee: string | null;
   priority: "low" | "medium" | "high" | "urgent";
-  status: typeof STATUS[number];
-  deadline: string;
-  created_at: string;
+  status: string;
+  due_at: string | null;
 };
 
-interface FormState {
-  title: string;
-  description: string;
-  assignee: string;
-  priority: "low" | "medium" | "high" | "urgent";
-  deadline: string;
-  status: typeof STATUS[number];
-}
+const PRIO_LABEL: Record<string, string> = { low: "Rendah", medium: "Sedang", high: "Tinggi", urgent: "Darurat" };
+const STATUS_ID: Record<string, string> = {
+  Backlog: "Antrean", Assigned: "Ditugaskan", "In Progress": "Dikerjakan",
+  "Waiting Input": "Menunggu Input", "In Review": "Ditinjau", Revision: "Revisi",
+  Completed: "Selesai", Blocked: "Terhambat", Cancelled: "Dibatalkan",
+};
 
 export default function DashboardPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", assignee: "dika", priority: "medium", deadline: "" });
+  const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks", {
-        credentials: "include",
-      });
+      const res = await fetch("/api/tasks");
       if (!res.ok) return;
       const json = await res.json();
       if (Array.isArray(json?.data)) setTasks(json.data);
-    } catch (err) {
-      console.error("Failed to fetch tasks:", err);
-    }
-  };
+    } catch (e) { console.error(e); }
+  }, []);
 
-  const [form, setForm] = useState<FormState>({
-    title: "",
-    description: "",
-    assignee: "dika",
-    priority: "medium" as const,
-    deadline: "",
-    status: "Backlog" as const,
-  });
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+    setLoading(true);
+    setNotice(null);
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -100,174 +51,139 @@ export default function DashboardPage() {
         body: JSON.stringify({ ...form, assigned_agent_id: form.assignee, due_at: form.deadline || null }),
         credentials: "include",
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.data) setTasks([...tasks, json.data]);
-        setForm({
-          title: "",
-          description: "",
-          assignee: "dika",
-          priority: "medium" as const,
-          deadline: "",
-          status: "Backlog" as const,
-        });
-      }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal membuat tugas");
+      if (json?.data) setTasks((t) => [json.data, ...t]);
+      setForm({ title: "", description: "", assignee: "dika", priority: "medium", deadline: "" });
+      setNotice("Tugas berhasil dibuat ✓");
     } catch (err) {
-      console.error("Failed to create task:", err);
+      setNotice(err instanceof Error ? err.message : "Terjadi kesalahan");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredTasks = tasks.filter((task) =>
-    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (task.description &&
-      task.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filtered = tasks.filter((t) =>
+    t.title.toLowerCase().includes(search.toLowerCase()) ||
+    (t.description ?? "").toLowerCase().includes(search.toLowerCase()));
+
+  const fmtDate = (d: string | null) => d
+    ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+    : "—";
 
   return (
-    <div className="p-8 max-w-3xl mx-auto bg-background font-sans antialiased">
-      {/* Header */}
-      <header className="mb-8 border-b pb-4">
-        <h1 className="text-3xl font-bold tracking-tight mb-2 text-foreground">
-          Dashboard
-        </h1>
-        <p className="text-base text-muted-foreground">
-          Selamat datang kembali.
-        </p>
+    <div style={{ maxWidth: 880, margin: "0 auto", padding: "28px 20px 60px" }}>
+      {/* Top nav */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt="" style={{ width: 30, height: 30 }} />
+          <strong style={{ color: "var(--navy-800)" }}>AICO</strong>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <a className="btn btn-ghost" href="/tasks">Tugas</a>
+          <a className="btn btn-ghost" href="/research">Riset</a>
+        </div>
       </header>
 
-      {/* Create Task Form */}
-      <form onSubmit={handleCreateTask} className="mb-6 rounded-lg border border-border p-4 bg-card">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) =>
-              setForm({ ...form, title: e.target.value })
-            }
-            placeholder="Judul tugas"
-            className="input"
-          />
-          <input
-            type="text"
-            value={form.description}
-            onChange={(e) =>
-              setForm({ ...form, description: e.target.value })
-            }
-            placeholder="Deskripsi tugas"
-            className="input"
-          />
-          <select
-            value={form.assignee}
-            onChange={(e) =>
-              setForm({ ...form, assignee: e.target.value })
-            }
-            className="input"
-          >
-            <option value="dika">Dika (Manager)</option>
-            <option value="kinan">Kinan (Research)</option>
-            <option value="dava">Dava (Content Strategist)</option>
-            <option value="yanti">Yanti (Video Producer)</option>
-            <option value="anton">Anton (Publisher)</option>
-          </select>
-          <select
-            value={form.priority}
-            onChange={(e) =>
-              setForm({ ...form, priority: e.target.value as "low" | "medium" | "high" | "urgent" })
-            }
-            className="input"
-          >
-            <option value="low">Rendah</option>
-            <option value="medium">Sedang</option>
-            <option value="high">Tinggi</option>
-            <option value="urgent">Darurat</option>
-          </select>
-          <input
-            type="date"
-            value={form.deadline}
-            onChange={(e) =>
-              setForm({ ...form, deadline: e.target.value })
-            }
-            className="input"
-          />
-        </div>
-        <button
-          type="submit"
-          className="mt-4 w-full rounded-lg bg-primary px-4 py-2.5 text-white font-semibold transition-colors hover:bg-primary/90"
-        >
-          Buat Tugas
-        </button>
-      </form>
+      {/* Hero */}
+      <section className="page-hero">
+        <span className="eyebrow" style={{ color: "var(--red-400)" }}>Ruang kerja harian</span>
+        <h1 className="h-page" style={{ marginTop: 8 }}>Selamat datang kembali 👋</h1>
+        <p style={{ color: "rgba(255,255,255,.75)", marginTop: 6, fontSize: 15 }}>
+          {tasks.length} tugas terdaftar &middot; review harian pukul 14.00 WIB
+        </p>
+      </section>
 
-      {/* Task List */}
-      <Card>
-        <CardHeader className="justify-between">
-          <span>Daftar Tugas</span>
-          <span className="text-sm text-muted-foreground">
-            {tasks.length} tugas
-          </span>
-        </CardHeader>
-        <CardContent>
-          {filteredTasks.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              Tugas tidak ditemukan. Masukkan tugas baru atau ubah kata kunci pencarian.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-card/50"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium line-clamp-2 text-foreground">
-                        {task.title}
-                      </h3>
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {task.description || "-"}
-                      </p>
-                    </div>
-                    <span
-                      className="badge inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                      style={{
-                        background: `hsla(${STATUS_COLORS[task.status]?.split(" ")[0] || 220}, 10%, 85%, 0.2)`,
-                        color: STATUS_COLORS[task.status] || "var(--muted-foreground)",
-                      }}
-                    >
-                      {task.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="text-xs mr-2" style={{ color: "var(--muted-foreground)" }}>
-                      Assignee: {task.assignee || "-"}
-                    </span>
-                    <span className="text-xs mr-2" style={{ color: "var(--muted-foreground)" }}>
-                      Priority:
-                      <span className={PRIORITY_COLORS[task.priority]}>
-                        {task.priority}
-                      </span>
-                    </span>
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      Deadline: {task.deadline ? new Date(task.deadline).toLocaleDateString() : "-"}
-                    </span>
+      {/* Create form */}
+      <section className="surface-card" style={{ padding: 22, marginTop: 22 }}>
+        <div className="eyebrow">Tugas baru</div>
+        <h2 className="h-section" style={{ marginTop: 8, marginBottom: 14 }}>Buat tugas untuk tim agen</h2>
+        {notice && (
+          <div role="status" style={{ background: "#E7F6EC", border: "1px solid #B7E2C3", color: "#15803D", borderRadius: 10, padding: "9px 14px", fontSize: 14, marginBottom: 12 }}>
+            {notice}
+          </div>
+        )}
+        <form onSubmit={handleCreateTask} className="stack-12">
+          <div>
+            <label className="field-label" htmlFor="t-title">Judul tugas</label>
+            <input id="t-title" className="input" placeholder="Contoh: Riset tren konten pendidikan 24 jam"
+              value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="t-desc">Deskripsi</label>
+            <input id="t-desc" className="input" placeholder="Detail singkat tujuan tugas (opsional)"
+              value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          </div>
+          <div className="grid-form">
+            <div>
+              <label className="field-label" htmlFor="t-agent">Penanggung jawab</label>
+              <select id="t-agent" className="input" value={form.assignee} onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
+                <option value="dika">Dika — Manajer</option>
+                <option value="kinan">Kinan — Periset</option>
+                <option value="dava">Dava — Strategis Konten</option>
+                <option value="yanti">Yanti — Produser Video</option>
+                <option value="anton">Anton — Penerbit</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="t-prio">Prioritas</label>
+              <select id="t-prio" className="input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                <option value="low">Rendah</option>
+                <option value="medium">Sedang</option>
+                <option value="high">Tinggi</option>
+                <option value="urgent">Darurat</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="t-due">Tenggat</label>
+              <input id="t-due" type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%" }}>
+                {loading ? "Menyimpan…" : "Buat Tugas"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      {/* Task list */}
+      <section className="surface-card" style={{ padding: 22, marginTop: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+          <div>
+            <div className="eyebrow">Aktivitas</div>
+            <h2 className="h-section" style={{ marginTop: 6 }}>Daftar Tugas <span className="text-muted" style={{ fontWeight: 500 }}>({tasks.length})</span></h2>
+          </div>
+          <input className="input" style={{ maxWidth: 260 }} placeholder="Cari tugas…"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="empty-state">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/empty-tasks.svg" alt="" />
+            <p style={{ fontWeight: 600, color: "var(--ink)" }}>Belum ada tugas yang cocok</p>
+            <p style={{ fontSize: 14 }}>Buat tugas pertama untuk tim agen di form di atas.</p>
+          </div>
+        ) : (
+          <div className="stack-12">
+            {filtered.map((t) => (
+              <div key={t.id} className="row-card">
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{t.title}</div>
+                  {t.description && <div className="text-muted" style={{ fontSize: 13.5, marginTop: 2 }}>{t.description}</div>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <span className={`badge badge-${t.priority} badge-dot`}>{PRIO_LABEL[t.priority] ?? t.priority}</span>
+                    <span className="badge" style={{ background: "#EEF2F7", color: "var(--navy-700)" }}>{STATUS_ID[t.status] ?? t.status}</span>
+                    <span className="text-muted" style={{ fontSize: 12.5 }}>Tenggat: {fmtDate(t.due_at)}</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="mt-6">
-            <input
-              type="text"
-              placeholder="Cari tugas berdasarkan judul..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input w-full"
-            />
+              </div>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </section>
     </div>
   );
 }
