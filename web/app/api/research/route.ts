@@ -5,39 +5,46 @@ const PLATFORMS = ['instagram', 'tiktok', 'threads']
 const VERIF = ['Verified', 'Estimated', 'Unverified', 'Unavailable']
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const withItems = searchParams.get('with_items') === '1'
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
-  const db = supabaseAdmin()
+  try {
+    const { searchParams } = new URL(req.url)
+    const withItems = searchParams.get('with_items') === '1'
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
+    const db = supabaseAdmin()
 
-  const { data: reports, error } = await db
-    .from('research_reports')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit)
+    const { data: reports, error } = await db
+      .from('research_reports')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  if (!withItems || !reports?.length) {
-    return NextResponse.json({ data: reports ?? [] })
+    if (!withItems || !reports?.length) {
+      return NextResponse.json({ data: reports ?? [] })
+    }
+
+    const ids = reports.map((r: any) => r.id)
+    const { data: items, error: e2 } = await db
+      .from('research_items')
+      .select('*')
+      .in('report_id', ids)
+      .order('created_at', { ascending: true })
+
+    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+
+    const byReport: Record<string, any[]> = {}
+    for (const it of items ?? []) {
+      (byReport[it.report_id] ||= []).push(it)
+    }
+    return NextResponse.json({
+      data: reports.map((r: any) => ({ ...r, items: byReport[r.id] ?? [] })),
+    })
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'kesalahan server' },
+      { status: 500 }
+    )
   }
-
-  const ids = reports.map((r: any) => r.id)
-  const { data: items, error: e2 } = await db
-    .from('research_items')
-    .select('*')
-    .in('report_id', ids)
-    .order('created_at', { ascending: true })
-
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
-
-  const byReport: Record<string, any[]> = {}
-  for (const it of items ?? []) {
-    (byReport[it.report_id] ||= []).push(it)
-  }
-  return NextResponse.json({
-    data: reports.map((r: any) => ({ ...r, items: byReport[r.id] ?? [] })),
-  })
 }
 
 export async function POST(req: Request) {
