@@ -102,7 +102,7 @@ export default function DivisiPage() {
               let teks = ""; try { const p = JSON.parse(m.payload); teks = p.catatan || (p.hasil ? String(p.hasil).slice(0, 160) : ""); } catch { teks = String(m.payload).slice(0, 160); }
               return (
                 <div className="activity-item" key={i}>
-                  <div className="activity-time">{fmtWaktu(m.created_at)}</div>
+                  <div className="activity-time">{fmtWaktu((m as any).t ?? m.created_at)}</div>
                   <div style={{ fontSize: 13.5, minWidth: 0 }}>{teks || "Update tugas"}</div>
                 </div>
               );
