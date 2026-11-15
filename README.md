@@ -2,6 +2,9 @@
 
 Platform produksi konten multi-agent berbasis AI untuk tim konten digital.
 
+Repo: https://github.com/gosumenep158b/ai-content-office
+Aplikasi live: https://ai-content-office.vercel.app/
+
 ## 🚀 Quick Start
 
 ```bash
@@ -17,10 +20,12 @@ cp .env.example .env.local  # jika ada, atau buat manual
 # Isi: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
 # 4. Setup database
-# Buka SQL Editor di Supabase Dashboard → jalankan:
+# Buka SQL Editor di Supabase Dashboard, jalankan berurutan:
 # - supabase/migrations/001_initial_schema.sql (22 tabel + seed 5 agent)
-# - supabase/migrations/002_rls_policies.sql (RLS per-user)
+# - supabase/migrations/002_isolate_from_dashboard.sql
+# - supabase/migrations/003_agent_bot_owner.sql (pemetaan agent -> bot Telegram)
 # - supabase/migrations/003_seed_agent_prompts.sql (prompt 5 agent)
+# - supabase/migrations/004_chat_messages.sql (chat antar worker)
 
 # 5. Run development
 npm run dev
@@ -32,24 +37,38 @@ npm run dev
 ai-content-office/
 ├── web/                      # Next.js app (Frontend + API)
 │   ├── app/                  # App Router
+│   │   ├── (app)/            # Halaman setelah login
+│   │   │   ├── chat/         # Chat antar worker (grup & DM, gaya iMessage)
+│   │   │   ├── dashboard/    # Dashboard
+│   │   │   ├── divisi/       # Dashboard per divisi
+│   │   │   ├── office/       # Main Office (monitoring tim saat jam kerja)
+│   │   │   ├── research/     # Research Center
+│   │   │   ├── studio/       # Studio konten
+│   │   │   └── tasks/        # Task Management UI
 │   │   ├── api/              # API Routes
+│   │   │   ├── admin/        # Admin
 │   │   │   ├── auth/         # Login/Logout/Me
-│   │   │   └── tasks/        # Task CRUD + Submit
-│   │   ├── dashboard/        # Dashboard page
-│   │   ├── tasks/            # Task Management UI
-│   │   ├── research/         # Research Center
-│   │   └── auth/login/       # Login page
+│   │   │   ├── chat/         # Chat antar worker
+│   │   │   ├── content/      # Konten (ide, brief, naskah, storyboard)
+│   │   │   ├── office/       # Data Main Office / divisi
+│   │   │   ├── research/     # Riset
+│   │   │   ├── tasks/        # Task CRUD + Submit + overdue
+│   │   │   └── worker/       # Antrian kerja bot (worker queue)
+│   │   └── login/            # Halaman login
 │   ├── src/
 │   │   ├── components/ui/    # UI components (Button, Card, Input, Select)
 │   │   ├── lib/              # Utilities (supabase.ts, utils.ts)
 │   │   └── design-system.css # Navy #0F2440 + Merah #DC2626
-│   └── middleware/           # Auth middleware
+│   └── middleware.ts         # Auth middleware
 ├── supabase/
-│   └── migrations/           # SQL migrations (001-003)
+│   └── migrations/           # SQL migrations (001-004)
 └── docs/
     ├── prompts/              # Agent system prompts (dika, kinan, dava, yanti, anton)
-    ├── content-templates/    # Konten templates
-    └── video/                # Video production assets
+    ├── content-templates/    # Template naskah & storyboard (+ skema JSON)
+    ├── video/                # Aset produksi video
+    ├── PRD_AI_Virtual_Content_Office_v1.0.pdf  # PRD v1.0
+    ├── SETUP.md              # Panduan setup lengkap
+    └── QA-CHECKLIST.md       # Checklist QA tiap rilis
 ```
 
 ## 🔐 Environment Variables
@@ -59,6 +78,44 @@ ai-content-office/
 | `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase project | `.env.local` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key (public) | `.env.local` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role (SECRET — jangan commit) | `.env.local` |
+
+Detail dan peringatan keamanan: lihat [Setup Guide](docs/SETUP.md).
+
+## 🤖 Agent System
+
+5 AI Agent dengan system prompt yang tersimpan di tabel `agent_prompts`:
+
+| Agent | Role | Tanggung Jawab |
+|-------|------|----------------|
+| **Dika** | Manager | Orchestrator, review 14.00 WIB, approval |
+| **Kinan** | Research | Riset tren 24 jam IG/TikTok/Threads |
+| **Dava** | Content Strategist | Seleksi ide, brief, naskah, storyboard |
+| **Yanti** | Content Designer | Produksi video faceless hybrid |
+| **Anton** | IT/Publisher | Paket unggah, analytics snapshot |
+
+Prompt masing-masing agent: `docs/prompts/` (`dika.md`, `kinan.md`, `dava.md`, `yanti.md`, `anton.md`).
+
+### Bot Telegram per agent
+
+Setiap agent "bekerja" lewat satu bot Telegram (pemetaan di `003_agent_bot_owner.sql`, endpoint worker di `/api/worker`):
+
+| Agent | Bot Telegram |
+|-------|--------------|
+| Dika + Kinan | @davadevis_bot |
+| Dava + Yanti | @dika_vm_bot |
+| Anton | @om_muse_bot |
+
+Sebutan agent yang bukan milik bot sendiri dialihkan otomatis ke bot pemiliknya (auto-responder worker, memakai status nyata dari database).
+
+## 💬 Chat Antar Worker
+
+Menu **Chat** (halaman `web/app/(app)/chat`, API `/api/chat`): thread grup dan DM antar worker dengan tampilan bubble gaya iMessage. Pesan disimpan di tabel `agent_messages` (payload `kind='chat'`), jadi tidak perlu tabel baru.
+
+## 🏢 Main Office & Sidebar Divisi
+
+- **Sidebar per divisi**: satu menu per divisi (Manager, Research, Content, Design, IT/Publisher), masing-masing menampilkan tugas selesai/belum selesai, progres, dan tugas yang melewati tenggat — semua angka diambil dari tabel task yang sama dengan halaman Tasks.
+- **Main Office** (halaman `office`, API `/api/office`): avatar tiap pekerja, tugas, dan feed aktivitas selama jam kerja.
+- Spesifikasi: `docs/sidebar-divisi-main-office-spec.md`.
 
 ## 🎯 Fitur Sprint 1-3
 
@@ -84,17 +141,12 @@ ai-content-office/
 - [x] Deteksi overdue + notifikasi
 - [ ] UI Task Management penuh (pending)
 
-## 🤖 Agent System
+## 🆕 Fitur Terbaru (setelah Sprint 3)
 
-5 AI Agent dengan system prompt yang tersimpan di `agent_prompts` table:
-
-| Agent | Role | Tanggung Jawab |
-|-------|------|----------------|
-| **Dika** | Manager | Orchestrator, review 14.00 WIB, approval |
-| **Kinan** | Research | Riset tren 24 jam IG/TikTok/Threads |
-| **Dava** | Content Strategist | Seleksi ide, brief, naskah, storyboard |
-| **Yanti** | Content Designer | Produksi video faceless hybrid |
-| **Anton** | IT/Publisher | Paket unggah, analytics snapshot |
+- Chat antar worker + auto-responder bot (lihat di atas).
+- Main Office & sidebar per divisi (lihat di atas).
+- Pipeline konten: ide → brief → naskah → storyboard (`contents`, `content_ideas`, `content_briefs`, `content_scripts`, `storyboards`; API `/api/content` dengan hapus cascade).
+- Pemetaan bot Telegram per agent + worker queue (`/api/worker`).
 
 ## 📊 Database Schema
 
@@ -124,9 +176,12 @@ ai-content-office/
 
 **URL live:** https://ai-content-office.vercel.app/
 
+Catatan: push ke `main` memicu auto-deploy. Jangan push dokumentasi sebelum pemilik meninjau diff/commit yang disetujui — kecuali atas permintaan pemilik langsung.
+
 ## 📝 Dokumentasi
 
 - [PRD v1.0](docs/PRD_AI_Virtual_Content_Office_v1.0.pdf)
 - [Setup Guide](docs/SETUP.md)
 - [QA Checklist](docs/QA-CHECKLIST.md)
 - [Agent Prompts](docs/prompts/README.md)
+- [Spek Sidebar Divisi + Main Office](docs/sidebar-divisi-main-office-spec.md)
