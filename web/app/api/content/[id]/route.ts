@@ -72,6 +72,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (!before.data) return NextResponse.json({ error: 'tidak ditemukan' }, { status: 404 })
 
   // hapus turunan dulu supaya tidak melanggar foreign key
+  await db.from('approvals').delete().eq('content_id', id)
   await db.from('content_ideas').delete().eq('content_id', id)
   await db.from('content_briefs').delete().eq('content_id', id)
   await db.from('storyboards').delete().eq('content_id', id)
