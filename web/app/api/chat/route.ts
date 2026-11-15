@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { bangunBalasan } from '@/lib/chat-reply'
 
 /**
  * Chat antar worker — memakai tabel `agent_messages` yang sudah ada
@@ -12,6 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 
 const GRUP = 'kantor'
 const BOTS = ['davadevis_bot', 'dika_vm_bot', 'om_muse_bot']
+const PENGIRIM_BOLEH = [...BOTS, 'owner']
 
 function roomDM(a: string, b: string) {
   return `dm:${[a, b].sort().join(':')}`
@@ -62,8 +64,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'sender & body wajib' }, { status: 400 })
     }
     const sender = String(b.sender)
-    if (!BOTS.includes(sender)) {
-      return NextResponse.json({ error: `sender harus salah satu: ${BOTS.join(', ')}` }, { status: 400 })
+    if (!PENGIRIM_BOLEH.includes(sender)) {
+      return NextResponse.json({ error: `sender harus salah satu: ${PENGIRIM_BOLEH.join(', ')}` }, { status: 400 })
     }
 
     let room = b.room ? String(b.room) : GRUP
@@ -86,7 +88,30 @@ export async function POST(req: Request) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ data: kePesan(data) }, { status: 201 })
+
+    // ==== balasan otomatis dari worker lain ====
+    let balasan = null
+    if (!b.no_auto) {
+      try {
+        const r = await bangunBalasan({ room, sender, body: teks })
+        if (r && r.bot !== sender) {
+          const ins = await db.from('agent_messages')
+            .insert({
+              task_id: null,
+              sender: r.bot,
+              receiver: room === GRUP ? 'all' : 'dm',
+              payload: { kind: 'chat', room, body: r.teks, auto: true },
+            })
+            .select()
+            .single()
+          if (ins.data) balasan = kePesan(ins.data)
+        }
+      } catch {
+        /* balasan gagal tidak boleh menggagalkan pengiriman pesan */
+      }
+    }
+
+    return NextResponse.json({ data: kePesan(data), balasan }, { status: 201 })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'error' }, { status: 500 })
   }
