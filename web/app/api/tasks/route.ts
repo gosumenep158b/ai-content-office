@@ -42,6 +42,30 @@ export async function POST(req: Request) {
   return NextResponse.json({ data }, { status: 201 })
 }
 
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url)
+  let id = searchParams.get('id')
+  if (!id) {
+    const body = await req.json().catch(() => null)
+    id = body?.id ?? null
+  }
+  if (!id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
+
+  const db = supabaseAdmin()
+  const { data: before } = await db.from('tasks').select('*').eq('id', id).single()
+  if (!before) return NextResponse.json({ error: 'task tidak ditemukan' }, { status: 404 })
+
+  await db.from('task_dependencies').delete().or(`task_id.eq.${id},depends_on_task_id.eq.${id}`)
+  const { error } = await db.from('tasks').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await db.from('audit_logs').insert({
+    actor: 'owner', actor_type: 'owner', action: 'task.delete',
+    entity: 'tasks', entity_id: id, before,
+  })
+  return NextResponse.json({ ok: true, id })
+}
+
 export async function PATCH(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body?.id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
