@@ -36,6 +36,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <a href="/office" className={pathname === "/office" ? "active" : ""}>
             <span className="nav-ico">🏢</span> Main Office
           </a>
+          <a href="/chat" className={pathname === "/chat" ? "active" : ""}>
+            <span className="nav-ico">💬</span> Chat Worker
+          </a>
           <span className="shell-nav-label">Divisi</span>
           {DIVISI.map((d) => (
             <a key={d.key} href={`/divisi/${d.key}`} className={pathname === `/divisi/${d.key}` ? "active" : ""}>
