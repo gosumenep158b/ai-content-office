@@ -107,7 +107,12 @@ export async function bangunBalasan(args: {
     else calon = 'davadevis_bot' // koordinator menjawab default
   }
 
-  if (!calon || calon === sender) return null
+  if (!calon) return null
+
+  // jangan menjawab diri sendiri — alihkan ke bot lain
+  if (calon === sender) {
+    calon = sender === 'davadevis_bot' ? 'om_muse_bot' : 'davadevis_bot'
+  }
 
   // prompt agent (bila ada)
   let prompt = ''
