@@ -63,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </a>
         </nav>
       </aside>
-      <div className="shell-content">
+      <div className={pathname === "/chat" ? "shell-content shell-content--flush" : "shell-content"}>
         <div className="shell-topbar">
           <button className="shell-hamburger" aria-label="Buka menu" onClick={() => setOpen(true)}>☰</button>
           {/* eslint-disable-next-line @next/next/no-img-element */}

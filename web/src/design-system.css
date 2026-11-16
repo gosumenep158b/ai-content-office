@@ -216,3 +216,11 @@ label.field-label {
 .activity-time { font-size: 12px; color: var(--muted); white-space: nowrap; padding-top: 2px; }
 .progress-track { height: 7px; border-radius: 999px; background: #E8EDF3; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--red-600), var(--red-500)); transition: width .3s ease; }
+
+/* ===== Full-bleed page (chat) — meniadakan padding shell ===== */
+.shell-content--flush { padding: 0; }
+.shell-content--flush .shell-topbar { margin: 0; }
+@media (max-width: 900px) {
+  .shell-content--flush { padding: 0; }
+  .shell-content--flush .shell-topbar { margin: 0; position: sticky; top: 0; }
+}

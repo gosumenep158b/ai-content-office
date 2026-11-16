@@ -1,0 +1,6 @@
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene1.mp4'
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene2.mp4'
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene3.mp4'
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene4.mp4'
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene5.mp4'
+file '/data/workspace/ai-content-office/docs/video/production/morning-productivity/scenes/scene6.mp4'

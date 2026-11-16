@@ -162,9 +162,9 @@ export default function ChatPage() {
   }, [messages])
 
   return (
-    <div className="flex h-[calc(100vh-56px)] bg-[#F2F2F7]">
+    <div className="flex h-[calc(100dvh-56px)] overflow-hidden bg-[#F2F2F7] md:h-[calc(100vh-0px)]">
       {/* ==== Daftar percakapan ==== */}
-      <aside className={`${showList ? "flex" : "hidden"} w-full flex-col border-r border-black/10 bg-white md:flex md:w-80`}>
+      <aside className={`${showList ? "flex" : "hidden"} min-h-0 w-full flex-col border-r border-black/10 bg-white md:flex md:w-80`}>
         <div className="border-b border-black/5 px-4 py-3">
           <div className="flex items-center justify-between">
             <h1 className="text-[22px] font-bold tracking-tight text-black">Chat</h1>
@@ -207,7 +207,7 @@ export default function ChatPage() {
       </aside>
 
       {/* ==== Thread ==== */}
-      <section className={`${showList ? "hidden" : "flex"} min-w-0 flex-1 flex-col md:flex`}>
+      <section className={`${showList ? "hidden" : "flex"} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
         {/* Header */}
         <header className="flex items-center gap-3 border-b border-black/10 bg-white/80 px-4 py-2.5 backdrop-blur">
           <button className="text-[#007AFF] md:hidden" onClick={() => setShowList(true)} aria-label="Kembali">
@@ -281,7 +281,8 @@ export default function ChatPage() {
         </div>
 
         {/* Composer */}
-        <form onSubmit={kirim} className="border-t border-black/10 bg-white/80 px-3 py-2.5 backdrop-blur">
+        <form onSubmit={kirim} className="border-t border-black/10 bg-white/95 px-3 pt-2.5 backdrop-blur"
+          style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}>
           <div className="flex items-end gap-2">
             <div className="flex-1 rounded-[20px] border border-black/10 bg-white px-4 py-2">
               <textarea
@@ -292,7 +293,7 @@ export default function ChatPage() {
                 }}
                 rows={1}
                 placeholder="Pesan"
-                className="max-h-28 w-full resize-none bg-transparent text-[14.5px] text-black outline-none placeholder:text-black/35"
+                className="max-h-28 w-full resize-none bg-transparent text-[16px] text-black outline-none placeholder:text-black/35 md:text-[14.5px]"
               />
             </div>
             <button

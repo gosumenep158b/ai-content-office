@@ -30,6 +30,9 @@ export async function GET(req: Request) {
       .in('report_id', ids)
       .order('created_at', { ascending: true })
 
+    if (e2 && e2.code === '42P01') {  // undefined_table
+      return NextResponse.json({ data: reports.map((r: any) => ({ ...r, items: [] })) })
+    }
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
 
     const byReport: Record<string, any[]> = {}
