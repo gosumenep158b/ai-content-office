@@ -50,19 +50,32 @@ export async function POST(req: Request) {
     const content = await db.from('contents').select('*').eq('id', b.content_id).single()
     if (!content.data) return NextResponse.json({ error: 'konten tidak ditemukan' }, { status: 404 })
 
-    // versi berikutnya
-    const last = await db.from('video_versions').select('version')
-      .eq('content_id', b.content_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    const version = (last.data as any)?.version ? Number((last.data as any).version) + 1 : 1
+    // versi berikutnya (kolom `version` mungkin belum ada di DB live)
+    let version: number | null = null
+    try {
+      const last = await db.from('video_versions').select('version')
+        .eq('content_id', b.content_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (!last.error) version = Number(last.data?.version ?? 0) + 1
+    } catch { version = null }
 
-    const { data, error } = await db.from('video_versions').insert({
+    const payload: Record<string, unknown> = {
       content_id: b.content_id,
-      version,
       status: 'draft',
       spec: { ...SPEC_DEFAULT, ...(b.spec ?? {}) },
       catatan: b.catatan ?? null,
-    }).select().single()
+    }
+    if (version !== null) payload.version = version
 
+    let ins = await db.from('video_versions').insert(payload).select().single()
+
+    // fallback bila skema live belum punya kolom version
+    if (ins.error && /version/i.test(ins.error.message)) {
+      delete payload.version
+      ins = await db.from('video_versions').insert(payload).select().single()
+    }
+
+    const data = ins.data
+    const error = ins.error
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     await db.from('contents').update({ status: 'Rendering', updated_at: new Date().toISOString() }).eq('id', b.content_id)
