@@ -39,6 +39,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <a href="/analytics" className={pathname === "/analytics" ? "active" : ""}>
             <span className="nav-ico">📊</span> Analytics
           </a>
+          <a href="/videos" className={pathname === "/videos" ? "active" : ""}>
+            <span className="nav-ico">🎬</span> Video Library
+          </a>
           <a href="/chat" className={pathname === "/chat" ? "active" : ""}>
             <span className="nav-ico">💬</span> Chat Worker
           </a>
