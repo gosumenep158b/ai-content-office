@@ -1,29 +1,50 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { AGENT_OWNER, agentsOfBot } from '@/lib/agent-owner'
+import {
+  authorizeWorkerQueueRequest,
+  finalizeWorkerQueueResponse,
+  type WorkerQueueAuthorization,
+} from '../../_lib/worker-queue-auth'
+
+export const dynamic = 'force-dynamic'
 
 const AKTIF = ['Assigned', 'In Progress', 'Waiting Input', 'Revision']
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store', Vary: 'Authorization, Cookie' }
+
+function privateResponse(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', PRIVATE_HEADERS['Cache-Control'])
+  response.headers.set('Vary', PRIVATE_HEADERS.Vary)
+  return response
+}
 
 /**
  * GET /api/worker/queue?bot=<bot_owner>
- *
- * Antrean kerja untuk satu bot. Bot memanggil ini secara berkala,
- * mengambil task milik agent-nya, mengeksekusi, lalu submit hasil.
- *
- * Tanpa parameter bot -> ringkasan semua bot (untuk dashboard).
+ * Bot requests require their dedicated bearer credential and explicit identity.
+ * Without `bot`, only a verified UID in STAF_AI_ADMIN_USER_IDS may view the summary.
  */
 export async function GET(req: Request) {
+  let authorization: WorkerQueueAuthorization | null = null
   try {
     const { searchParams } = new URL(req.url)
-    const bot = searchParams.get('bot')
-    const db = supabaseAdmin()
+    const botParams = searchParams.getAll('bot')
+    if (botParams.length > 1) {
+      return privateResponse(NextResponse.json({ error: 'bot parameter must appear once' }, { status: 400 }))
+    }
+    const bot = botParams.length === 0 ? null : botParams[0].trim()
+    if (botParams.length === 1 && !bot) {
+      return privateResponse(NextResponse.json({ error: 'bot parameter is required when supplied' }, { status: 400 }))
+    }
 
+    authorization = await authorizeWorkerQueueRequest(req, bot)
+    if (!authorization.ok) return finalizeWorkerQueueResponse(authorization, authorization.response)
+
+    const db = supabaseAdmin()
     const { data: agents, error: eA } = await db.from('agents').select('*')
-    if (eA) return NextResponse.json({ error: eA.message }, { status: 500 })
+    if (eA) return finalizeWorkerQueueResponse(authorization, NextResponse.json({ error: eA.message }, { status: 500 }))
 
     // pemilik: kolom DB bila ada, selain itu fallback statis
     const ownerOf = (a: any) => a.bot_owner || AGENT_OWNER[(a.nama || '').toLowerCase()] || null
-
     const botList = Array.from(new Set((agents ?? []).map(ownerOf).filter(Boolean))) as string[]
 
     if (!bot) {
@@ -40,7 +61,7 @@ export async function GET(req: Request) {
           selesai: milik.filter((t: any) => t.status === 'Completed').length,
         }
       })
-      return NextResponse.json({ data: ringkasan })
+      return finalizeWorkerQueueResponse(authorization, NextResponse.json({ data: ringkasan }))
     }
 
     // antrean untuk satu bot
@@ -51,7 +72,7 @@ export async function GET(req: Request) {
     const fallback = agentsOfBot(bot)
     const targetNama = namaDiBot.length ? namaDiBot : fallback
     if (!targetNama.length) {
-      return NextResponse.json({ error: `bot '${bot}' tidak punya agent terdaftar` }, { status: 404 })
+      return finalizeWorkerQueueResponse(authorization, NextResponse.json({ error: `bot '${bot}' tidak punya agent terdaftar` }, { status: 404 }))
     }
 
     const agentRows = (agents ?? []).filter((a: any) => targetNama.includes(a.nama))
@@ -65,7 +86,7 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: true })
       .limit(50)
 
-    if (eT) return NextResponse.json({ error: eT.message }, { status: 500 })
+    if (eT) return finalizeWorkerQueueResponse(authorization, NextResponse.json({ error: eT.message }, { status: 500 }))
 
     // prompt terbaru per agent
     const prompts: Record<string, string> = {}
@@ -80,7 +101,7 @@ export async function GET(req: Request) {
       if (p?.prompt) prompts[a.nama] = p.prompt
     }
 
-    return NextResponse.json({
+    return finalizeWorkerQueueResponse(authorization, NextResponse.json({
       data: {
         bot,
         agents: agentRows.map((a: any) => ({
@@ -89,11 +110,12 @@ export async function GET(req: Request) {
         })),
         tugas: tasks ?? [],
       },
-    })
+    }))
   } catch (err) {
-    return NextResponse.json(
+    const errorResponse = NextResponse.json(
       { error: err instanceof Error ? err.message : 'kesalahan server' },
-      { status: 500 }
+      { status: 500, headers: PRIVATE_HEADERS },
     )
+    return authorization ? finalizeWorkerQueueResponse(authorization, errorResponse) : errorResponse
   }
 }
