@@ -56,6 +56,27 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const upd = await db.from('contents').update(patch).eq('id', id).select().single()
   if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 500 })
 
+  // S4.1 Approval flow: konten jadi Approved → auto-buat task produksi video utk Yanti (jika belum ada)
+  if (patch.status === 'Approved' && before.data?.status !== 'Approved') {
+    const { data: yanti } = await db.from('agents').select('id').eq('nama', 'yanti').single()
+    const { data: existing } = await db
+      .from('tasks')
+      .select('id')
+      .eq('content_id', id)
+      .ilike('title', '%[VIDEO]%')
+    if (yanti && (!existing || existing.length === 0)) {
+      await db.from('tasks').insert({
+        title: `[VIDEO] Produksi reel: ${(upd.data.title ?? '').slice(0, 60)}`,
+        description: 'Auto dibuat oleh approval flow (S4.1). Produksi video reel dari konten yang sudah di-approve.',
+        assigned_agent_id: yanti.id, status: 'Backlog', priority: 'high', content_id: id,
+      })
+      await db.from('agent_messages').insert({
+        sender: 'agent:dika', receiver: 'owner',
+        payload: JSON.stringify({ agent: 'dika', catatan: `Konten "${upd.data.title}" di-approve → task produksi video otomatis dibuat untuk Yanti.` }),
+      })
+    }
+  }
+
   await db.from('audit_logs').insert({
     actor: 'dava', actor_type: 'agent', action: 'content.update',
     entity: 'contents', entity_id: id, before: before.data, after: upd.data,
