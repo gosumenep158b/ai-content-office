@@ -10,13 +10,14 @@ export const AGENT_OWNER: Record<string, string> = {
   dika: 'davadevis_bot',
   kinan: 'davadevis_bot',
   dava: 'dika_vm_bot',
-  yanti: 'dika_vm_bot',
+  yanti: 'staf_ai_cue_bot',
   anton: 'om_muse_bot',
 }
 
 export const OWNER_LABEL: Record<string, string> = {
   davadevis_bot: 'Dika & Kinan — otak (orkestrasi + riset)',
-  dika_vm_bot: 'Dava & Yanti — naskah + produksi video',
+  dika_vm_bot: 'Dava — naskah lanjutan',
+  staf_ai_cue_bot: 'Yanti — produksi video',
   om_muse_bot: 'Anton — paket unggah & publikasi',
 }
 
