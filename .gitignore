@@ -1,3 +1,6 @@
 node_modules/
 .next/
 .env*
+worker/voices/*.onnx
+worker/output/*.mp4
+worker/output/*.wav
