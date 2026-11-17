@@ -7,6 +7,24 @@ const SPEC_DEFAULT = {
   vcodec: 'h264', acodec: 'aac', fps: 30, subtitle: 'embedded',
 }
 
+/** Update toleran: buang kolom yang tidak ada di skema live lalu ulangi. */
+async function updateTolerant(
+  db: any, id: string, patch: Record<string, unknown>, expectStatus?: string,
+) {
+  const p: Record<string, unknown> = { ...patch }
+  for (let i = 0; i < 6; i++) {
+    let q = db.from('render_jobs').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id)
+    if (expectStatus) q = q.eq('status', expectStatus)
+    const r = await q.select().single()
+    if (!r.error) return r
+    const m = /column\s+"?([a-z_]+)"?/i.exec(r.error.message) || /'([a-z_]+)'\s+column/i.exec(r.error.message)
+    const kolom = m?.[1]
+    if (kolom && kolom in p) { delete p[kolom]; continue }
+    return r
+  }
+  return { data: null, error: { message: 'gagal update' } }
+}
+
 /** GET /api/render-jobs?status=pending&limit=10 */
 export async function GET(req: Request) {
   try {
@@ -15,8 +33,7 @@ export async function GET(req: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
 
     const db = supabaseAdmin()
-    let q = db.from('render_jobs').select('*, content:contents(id,title)')
-      .order('created_at', { ascending: true }).limit(limit)
+    let q = db.from('render_jobs').select('*').order('created_at', { ascending: true }).limit(limit)
     if (status) q = q.eq('status', status)
 
     const { data, error } = await q
@@ -27,7 +44,7 @@ export async function GET(req: Request) {
   }
 }
 
-/** POST /api/render-jobs  body: { content_id, spec? } */
+/** POST /api/render-jobs  body: { content_id, task_id?, spec? } */
 export async function POST(req: Request) {
   try {
     const b = await req.json().catch(() => null)
@@ -37,27 +54,32 @@ export async function POST(req: Request) {
     const content = await db.from('contents').select('id,title').eq('id', b.content_id).single()
     if (!content.data) return NextResponse.json({ error: 'konten tidak ditemukan' }, { status: 404 })
 
-    const { data, error } = await db.from('render_jobs').insert({
+    const payload: Record<string, unknown> = {
       content_id: b.content_id,
       status: 'pending',
       spec: { ...SPEC_DEFAULT, ...(b.spec ?? {}) },
-    }).select().single()
+    }
+    if (b.task_id) payload.task_id = b.task_id
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    let ins = await db.from('render_jobs').insert(payload).select().single()
+    const m = ins.error && /column\s+"?([a-z_]+)"?/i.exec(ins.error.message)
+    if (ins.error && m?.[1] && m[1] in payload) {
+      delete payload[m[1]]
+      ins = await db.from('render_jobs').insert(payload).select().single()
+    }
+    if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 500 })
+
     await db.from('audit_logs').insert({
       actor: 'yanti', actor_type: 'agent', action: 'render.enqueue',
-      entity: 'render_jobs', entity_id: data.id, after: data,
+      entity: 'render_jobs', entity_id: ins.data.id, after: ins.data,
     })
-    return NextResponse.json({ data }, { status: 201 })
+    return NextResponse.json({ data: ins.data }, { status: 201 })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'error' }, { status: 500 })
   }
 }
 
-/**
- * PATCH /api/render-jobs
- * body: { id, action: 'claim'|'done'|'fail', bot, result?, error? }
- */
+/** PATCH /api/render-jobs  body: { id, action, bot?, output_path?, error? } */
 export async function PATCH(req: Request) {
   try {
     const b = await req.json().catch(() => null)
@@ -72,37 +94,37 @@ export async function PATCH(req: Request) {
       const bot = String(b.bot ?? '').trim()
       if (!bot) return NextResponse.json({ error: 'bot wajib saat claim' }, { status: 400 })
 
-      // UPDATE bersyarat: hanya berhasil bila masih pending (anti dobel-klaim)
-      const upd = await db.from('render_jobs')
-        .update({ status: 'claimed', claimed_by: bot, claimed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', b.id).eq('status', 'pending')
-        .select().single()
+      const upd = await updateTolerant(db, b.id, {
+        status: 'claimed', claimed_by: bot, claimed_at: new Date().toISOString(),
+      }, 'pending')
 
-      if (upd.error) return NextResponse.json({ error: 'job sudah diklaim worker lain', status: 409 }, { status: 409 })
+      if (upd.error || !upd.data) {
+        return NextResponse.json({ error: 'job sudah diklaim worker lain / gagal klaim' }, { status: 409 })
+      }
       return NextResponse.json({ data: upd.data })
     }
 
     if (b.action === 'done') {
-      const upd = await db.from('render_jobs')
-        .update({ status: 'done', result: b.result ?? null, error: null, updated_at: new Date().toISOString() })
-        .eq('id', b.id).eq('status', 'claimed')
-        .select().single()
+      const upd = await updateTolerant(db, b.id, {
+        status: 'done',
+        output_path: b.output_path ?? null,
+        result: b.result ?? null,
+        error: null,
+      }, 'claimed')
       if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 409 })
       return NextResponse.json({ data: upd.data })
     }
 
-    // fail
     const job = await db.from('render_jobs').select('*').eq('id', b.id).single()
     if (!job.data) return NextResponse.json({ error: 'job tidak ditemukan' }, { status: 404 })
 
     const attempts = (job.data.attempts ?? 0) + 1
     const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending'
-    const upd = await db.from('render_jobs').update({
-      status, attempts, error: String(b.error ?? 'render gagal').slice(0, 1000),
+    const upd = await updateTolerant(db, b.id, {
+      status, attempts,
+      error: String(b.error ?? 'render gagal').slice(0, 1000),
       claimed_by: status === 'pending' ? null : job.data.claimed_by,
-      updated_at: new Date().toISOString(),
-    }).eq('id', b.id).select().single()
-
+    })
     if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 500 })
     return NextResponse.json({ data: upd.data })
   } catch (err) {

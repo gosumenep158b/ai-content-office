@@ -72,6 +72,35 @@ def heartbeat(status="idle", note=None):
 
 
 # ---------------------------------------------------------------- handlers
+def upload_storage(path: str) -> str | None:
+    """Upload ke Supabase Storage (bucket 'videos'), kembalikan public URL."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not (url and key) or not os.path.exists(path):
+        return None
+    url = url.rstrip("/")
+    nama = os.path.basename(path)
+    obj = f"render/{nama}"
+    try:
+        data = open(path, "rb").read()
+        req = urllib.request.Request(
+            f"{url}/storage/v1/object/videos/{obj}",
+            data=data,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "video/mp4",
+                "x-upsert": "true",
+            },
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=180)
+        return f"{url}/storage/v1/object/public/videos/{obj}"
+    except Exception as e:
+        log(f"upload storage gagal: {e}")
+        return None
+
+
 def handle_yanti(task: dict):
     """Produksi video: klaim render job -> render -> simpan versi video."""
     content_id = task.get("content_id")
@@ -124,19 +153,21 @@ def handle_yanti(task: dict):
             return False
 
         size = os.path.getsize(out)
+        pub = upload_storage(out)
 
         # daftarkan / perbarui versi video
         vers = api("/api/videos", "POST", {"content_id": content_id})
         vid = (vers.get("data") or {}).get("id")
         if vid:
             api(f"/api/videos/{vid}", "PATCH", {
-                "status": "preview", "file_path": out,
-                "catatan": f"render worker {BOT}, {size} bytes",
+                "status": "preview", "file_path": pub or out,
+                "catatan": f"render worker {BOT}, {size} bytes" + ("" if pub else " (file lokal)"),
             })
 
         api("/api/render-jobs", "PATCH", {
             "id": job["id"], "action": "done",
-            "result": {"file": out, "bytes": size},
+            "output_path": pub or out,
+            "result": {"file": out, "bytes": size, "public_url": pub},
         })
         api("/api/tasks", "PATCH", {"id": task["id"], "status": "In Review"})
         log(f"yanti: selesai -> {out} ({size} bytes)")
