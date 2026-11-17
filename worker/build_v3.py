@@ -49,10 +49,27 @@ def durasi(p):
 def tts(text, out):
     if not os.path.exists(VOICE):
         raise RuntimeError("voice model tidak ada: " + VOICE)
-    r = subprocess.run([PY, "-m", "piper", "--model", VOICE, "--output_file", out],
+    raw = out.replace(".wav", "-raw.wav")
+    r = subprocess.run([PY, "-m", "piper", "--model", VOICE, "--output_file", raw],
                        input=text, capture_output=True, text=True)
-    if r.returncode != 0 or not os.path.exists(out):
+    if r.returncode != 0 or not os.path.exists(raw):
         raise RuntimeError("piper gagal: " + r.stderr[-300:])
+
+    # bersihkan: buang hening awal/akhir, ratakan keras, resample 48k mono
+    sh(["ffmpeg", "-y", "-i", raw, "-af",
+        "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,"
+        "areverse,"
+        "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,"
+        "areverse,"
+        "highpass=f=90,"
+        "acompressor=threshold=-20dB:ratio=3:attack=8:release=160:makeup=2,"
+        "loudnorm=I=-16:TP=-1.5:LRA=9,"
+        "aresample=48000",
+        "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", out])
+    try:
+        os.remove(raw)
+    except OSError:
+        pass
     return out
 
 
@@ -191,8 +208,8 @@ def main():
                 "-t", f"{dur:.3f}",
                 "-vf", "fade=t=in:st=0:d=0.18,format=yuv420p",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+                "-af", "adelay=180|180,apad,aresample=48000",
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
-                "-af", "adelay=250|250,apad",
                 "-shortest", seg])
             segs.append(seg)
             print(f"  scene {i}/{total}: audio {d_audio:.1f}s -> {dur:.1f}s")
@@ -206,7 +223,7 @@ def main():
         sh(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lf, "-c", "copy", gab])
 
         sh(["ffmpeg", "-y", "-i", gab, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", a.out])
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", a.out])
 
         print(json.dumps({"ok": True, "file": a.out, "bytes": os.path.getsize(a.out),
                           "durasi": round(durasi(a.out), 1)}, ensure_ascii=False))
