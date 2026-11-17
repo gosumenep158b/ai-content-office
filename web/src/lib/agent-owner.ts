@@ -32,3 +32,20 @@ export function agentsOfBot(bot: string): string[] {
 export function botOfAgent(nama: string): string | null {
   return AGENT_OWNER[(nama ?? '').toLowerCase()] ?? null
 }
+
+/**
+ * Akses tambahan lintas bot (diberikan Elvis 16 Nov):
+ *   staf_ai_cue_bot juga boleh mengambil/mengerjakan task milik dava.
+ * Urutan cek: AGENT_OWNER dulu (pemilik), lalu EXTRA_ACCESS (berbagi).
+ */
+export const EXTRA_ACCESS: Record<string, string[]> = {
+  staf_ai_cue_bot: ['dava'],
+  dika_vm_bot: ['yanti'],
+}
+
+/** Bot boleh memproses agent ini? (pemilik ATAU akses tambahan) */
+export function botCanAccess(bot: string, nama: string): boolean {
+  const b = (bot ?? '').toLowerCase()
+  if (AGENT_OWNER[(nama ?? '').toLowerCase()] === b) return true
+  return (EXTRA_ACCESS[b] ?? []).includes((nama ?? '').toLowerCase())
+}

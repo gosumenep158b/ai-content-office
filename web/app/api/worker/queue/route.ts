@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { AGENT_OWNER, agentsOfBot } from '@/lib/agent-owner'
+import { AGENT_OWNER, agentsOfBot, botCanAccess } from '@/lib/agent-owner'
 import {
   authorizeWorkerQueueRequest,
   finalizeWorkerQueueResponse,
@@ -70,7 +70,10 @@ export async function GET(req: Request) {
       .map((a: any) => a.nama)
 
     const fallback = agentsOfBot(bot)
-    const targetNama = namaDiBot.length ? namaDiBot : fallback
+    const aksesTambahan = (agents ?? [])
+      .filter((a: any) => botCanAccess(bot, a.nama) && !namaDiBot.includes(a.nama))
+      .map((a: any) => a.nama)
+    const targetNama = [...namaDiBot, ...aksesTambahan].length ? Array.from(new Set([...namaDiBot, ...aksesTambahan])) : fallback
     if (!targetNama.length) {
       return finalizeWorkerQueueResponse(authorization, NextResponse.json({ error: `bot '${bot}' tidak punya agent terdaftar` }, { status: 404 }))
     }
