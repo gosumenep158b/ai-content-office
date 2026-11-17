@@ -17,7 +17,7 @@ async function updateTolerant(
     if (expectStatus) q = q.eq('status', expectStatus)
     const r = await q.select().single()
     if (!r.error) return r
-    const m = /column\s+"?([a-z_]+)"?/i.exec(r.error.message) || /'([a-z_]+)'\s+column/i.exec(r.error.message)
+    const m = /'([a-z_]+)'\s+column/i.exec(r.error.message) || /column\s+"([a-z_]+)"/i.exec(r.error.message)
     const kolom = m?.[1]
     if (kolom && kolom in p) { delete p[kolom]; continue }
     return r
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     if (b.task_id) payload.task_id = b.task_id
 
     let ins = await db.from('render_jobs').insert(payload).select().single()
-    const m = ins.error && /column\s+"?([a-z_]+)"?/i.exec(ins.error.message)
+    const m = ins.error && /'([a-z_]+)'\s+column/i.exec(ins.error.message)
     if (ins.error && m?.[1] && m[1] in payload) {
       delete payload[m[1]]
       ins = await db.from('render_jobs').insert(payload).select().single()
