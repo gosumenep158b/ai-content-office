@@ -61,6 +61,8 @@ def potong(narasi: str) -> list:
 
 
 def _provider() -> str:
+    if os.environ.get("VOICESTUDIO_URL"):
+        return "voicestudio"
     if os.environ.get("ELEVENLABS_API_KEY") and os.environ.get("ELEVENLABS_VOICE_ID"):
         return "elevenlabs"
     if os.environ.get("OPENAI_API_KEY"):
@@ -68,6 +70,26 @@ def _provider() -> str:
     if shutil.which("espeak-ng") or shutil.which("espeak"):
         return "lokal"
     return "tidak ada"
+
+
+def _tts_voicestudio(text: str, out: str) -> None:
+    """VoiceStudio backend lokal (omnivoice) — OpenAI-compatible endpoint."""
+    base = os.environ["VOICESTUDIO_URL"].rstrip("/")
+    body = {
+        "model": os.environ.get("VOICESTUDIO_MODEL", "omnivoice"),
+        "input": text,
+        "voice": os.environ.get("VOICESTUDIO_VOICE", "alloy"),
+        "response_format": "wav",
+        "language": os.environ.get("VOICESTUDIO_LANG", "id"),
+    }
+    req = urllib.request.Request(
+        f"{base}/v1/audio/speech",
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=600) as r, open(out, "wb") as f:
+        f.write(r.read())
 
 
 def _tts_elevenlabs(text: str, out: str) -> None:
@@ -154,7 +176,10 @@ def render(narasi: str, out: str, gap_ms: int = DEFAULT_GAP_MS) -> dict:
     try:
         for i, kal in enumerate(kalimat, 1):
             p = os.path.join(tmp, f"p{i:03d}.mp3")
-            if provider == "elevenlabs":
+            if provider == "voicestudio":
+                p = os.path.join(tmp, f"p{i:03d}.wav")
+                _tts_voicestudio(kal, p)
+            elif provider == "elevenlabs":
                 _tts_elevenlabs(kal, p)
             elif provider == "openai":
                 _tts_openai(kal, p)
