@@ -144,9 +144,9 @@ def handle_yanti(task: dict):
         with open(tmp_json, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
 
-        cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "render.py"),
-               "--json", tmp_json, "--out", out]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+        cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "build_v3.py"),
+               "--content", content_id, "--out", out]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
         if r.returncode != 0:
             api("/api/render-jobs", "PATCH", {"id": job["id"], "action": "fail", "error": r.stderr[-400:]})
             log(f"yanti: render gagal: {r.stderr[-200:]}")

@@ -47,13 +47,33 @@ def durasi(p):
 
 
 def tts(text, out):
-    if not os.path.exists(VOICE):
-        raise RuntimeError("voice model tidak ada: " + VOICE)
-    raw = out.replace(".wav", "-raw.wav")
-    r = subprocess.run([PY, "-m", "piper", "--model", VOICE, "--output_file", raw],
-                       input=text, capture_output=True, text=True)
-    if r.returncode != 0 or not os.path.exists(raw):
-        raise RuntimeError("piper gagal: " + r.stderr[-300:])
+    """TTS: VoiceStudio (bila VOICESTUDIO_URL diset) atau Piper lokal."""
+    vs = os.environ.get("VOICESTUDIO_URL")
+    if vs:
+        body = {
+            "model": os.environ.get("VOICESTUDIO_MODEL", "omnivoice"),
+            "input": text,
+            "voice": os.environ.get("VOICESTUDIO_VOICE", "alloy"),
+            "response_format": "wav",
+            "language": os.environ.get("VOICESTUDIO_LANG", "id"),
+        }
+        raw = out.replace(".wav", "-raw.wav")
+        req = urllib.request.Request(
+            f"{vs.rstrip('/')}/v1/audio/speech",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=600) as r, open(raw, "wb") as f:
+            f.write(r.read())
+    else:
+        if not os.path.exists(VOICE):
+            raise RuntimeError("voice model tidak ada: " + VOICE)
+        raw = out.replace(".wav", "-raw.wav")
+        r = subprocess.run([PY, "-m", "piper", "--model", VOICE, "--output_file", raw],
+                           input=text, capture_output=True, text=True)
+        if r.returncode != 0 or not os.path.exists(raw):
+            raise RuntimeError("piper gagal: " + r.stderr[-300:])
 
     # bersihkan: buang hening awal/akhir, ratakan keras, resample 48k mono
     sh(["ffmpeg", "-y", "-i", raw, "-af",
