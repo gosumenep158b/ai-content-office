@@ -36,6 +36,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <a href="/office" className={pathname === "/office" ? "active" : ""}>
             <span className="nav-ico">🏢</span> Main Office
           </a>
+          <a href="/makefun" className={pathname === "/makefun" ? "active" : ""}>
+            <span className="nav-ico">🎯</span> make.fun
+          </a>
           <a href="/analytics" className={pathname === "/analytics" ? "active" : ""}>
             <span className="nav-ico">📊</span> Analytics
           </a>
