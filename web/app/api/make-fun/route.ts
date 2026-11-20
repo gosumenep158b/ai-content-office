@@ -23,10 +23,15 @@ export async function GET() {
     const comp = await getJson(`${MF}/api/competitions/${SLUG}`)
     const board = await getJson(`${MF}/api/competitions/${SLUG}/leaderboard`)
 
-    const [{ data: msgs }, { data: agents }] = await Promise.all([
+    let agents: any[] = []
+    try {
+      const r = await db.from('agent_registry').select('*').order('last_seen_at', { ascending: false })
+      agents = r.data ?? []
+    } catch { /* tabel belum ada */ }
+
+    const [{ data: msgs }] = await Promise.all([
       db.from('agent_messages').select('*').filter('payload->>kind', 'eq', 'makefun')
         .order('created_at', { ascending: true }).limit(500),
-      db.from('agent_registry').select('*').order('last_seen_at', { ascending: false }),
     ])
 
     // progress: ambil versi terakhir per key
