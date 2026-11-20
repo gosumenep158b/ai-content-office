@@ -10,6 +10,8 @@ const AGENTS: Agent[] = [
   { id: "muse", name: "Muse", role: "Creative & strategy", initials: "MU", color: "#0EA5E9" },
   { id: "cue", name: "Cue", role: "Koordinator", initials: "CU", color: "#F59E0B" },
   { id: "dika_vm", name: "Dika", role: "Manager", initials: "DK", color: "#0F2440" },
+  { id: "gemini", name: "Gemini", role: "Analis & riset", initials: "GM", color: "#4285F4" },
+  { id: "grok", name: "Grok", role: "Ide & opini", initials: "GK", color: "#111827" },
 ]
 
 function jam(iso: string) {
